@@ -38,6 +38,26 @@ make install PREFIX=/usr/local     # system-wide
 make install PREFIX=~/.local       # user-local (default)
 ```
 
+## Example
+
+Running `git tree -L 2` in its own repository:
+
+```text
+git-tree-rs/
+├── .gitignore
+├── Cargo.lock
+├── Cargo.toml
+├── Makefile
+├── man/
+│   └── git-tree.1
+├── README.md
+└── src/
+    ├── color.rs
+    ├── git.rs
+    ├── main.rs
+    └── tree.rs
+```
+
 ## Usage
 
 ```bash
