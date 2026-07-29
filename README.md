@@ -1,90 +1,103 @@
 # git-tree (Rust)
 
-[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-
 Display Git-tracked files in a tree structure with syntax highlighting —
 like the system `tree` command, but scoped to files known to Git.
 
-Written in **Rust** for portability, performance, and maintainability —
-a single statically-linked binary with no runtime dependencies.
-
-## Features
-
-- **Git-aware** — by default shows only tracked files (`git ls-files --cached`)
-- **Portable** — single binary, no shell interpreter required, works on any Unix
-- **Syntax highlighting** — LS_COLORS-compatible coloring for directories,
-  executables, symlinks, and hidden files
-- **Depth control** — `-L N` limits output depth
-- **Pipe-friendly** — auto-detects terminal; handles SIGPIPE gracefully
-- **UTF-8 support** — non-ASCII filenames rendered correctly
-- **Modular code** — clean module structure: `color`, `git`, `tree`
+Written in **Rust** — a single statically-linked binary with zero runtime
+dependencies beyond Git itself.
 
 ## Quick Start
 
 ```bash
-# Build from source
-cargo build --release
+# Clone, build, install
+git clone git@github.com:chengyaqiang/git-tree-rs.git
+cd git-tree-rs
+make install
 
-# Install
-cp target/release/git-tree ~/.local/bin/
-
-# Use
+# Ready to use anywhere
 git tree -L 2
+```
+
+## Makefile Targets
+
+```bash
+make help         # show all targets
+make build        # cargo build --release
+make install      # build + install to PREFIX/bin (default ~/.local/bin)
+make uninstall    # remove from PREFIX/bin
+make check        # run clippy lints
+make test         # run cargo test
+make version      # print version number
+make clean        # remove build artifacts
+```
+
+Custom install path:
+
+```bash
+make install PREFIX=/usr/local     # system-wide
+make install PREFIX=~/.local       # user-local (default)
 ```
 
 ## Usage
 
 ```bash
-git tree                  # entire repository
-git tree src/             # subdirectory only
+git tree                  # entire repository (tracked files only)
+git tree src/             # subdirectory
 git tree -L 2             # depth limit
 git tree -d               # directories only
 git tree -a               # include untracked files
 git tree -A               # include ALL files (.gitignore'd too)
-git tree --color=always   # force color
+git tree --color=always   # force color output
 git tree --color=never    # disable color
 git tree --help           # full help
 ```
+
+## Color Rules
+
+| Entry type     | LS_COLORS key | Default      |
+|----------------|---------------|--------------|
+| Directory      | `di`          | Bold blue    |
+| Executable     | `ex`          | Bold green   |
+| Symlink        | `ln`          | Bold cyan    |
+| Orphaned link  | `or`          | Red bg       |
+| Hidden file    | —             | Dim          |
+| Tree connector | —             | Dim          |
+
+Colors automatically follow `LS_COLORS` and respect `NO_COLOR=1`.
 
 ## Architecture
 
 ```
 src/
-├── main.rs    # CLI definition (clap derive), orchestration
-├── color.rs   # ANSI color codes, LS_COLORS parsing, NO_COLOR support
-├── git.rs     # Git integration (ls-files, repo root detection)
-└── tree.rs    # Tree data structure, builder, recursive renderer
+├── main.rs     clap derive CLI + module wiring
+├── color.rs    ANSI codes, LS_COLORS parser, NO_COLOR compliance
+├── git.rs      git ls-files integration, file-set selection
+└── tree.rs     BTreeMap tree builder, recursive renderer
 ```
 
 | Module    | Responsibility |
 |-----------|---------------|
-| `main.rs` | Argument parsing via `clap` derive, wiring modules, error handling |
-| `color.rs`| ANSI escape generation, `LS_COLORS` env var parsing, `NO_COLOR` compliance |
-| `git.rs`  | Running `git ls-files`, file-set selection, path filtering |
-| `tree.rs` | `Entry` enum (File/Dir), `BTreeMap`-based builder, recursive renderer with depth limiting |
+| `main.rs` | Argument parsing, error handling, orchestration |
+| `color.rs`| Color mode detection, LS_COLORS parsing, ANSI escape generation |
+| `git.rs`  | `git ls-files` invocation, path filtering, repo root resolution |
+| `tree.rs` | In-memory tree from flat path list, depth-limited recursive rendering |
 
 ## Requirements
 
-- **Rust** ≥ 1.70 (for `std::io::IsTerminal`)
-- **Git** ≥ 2.0
+- Rust ≥ 1.70
+- Git ≥ 2.0
 
-## Development
+## Comparison
 
-```bash
-cargo build              # debug build
-cargo build --release    # release build
-cargo test               # run tests
-cargo clippy             # lint
-```
+| Aspect          | Bash (`git-tree`)     | Rust (`git-tree-rs`)  |
+|-----------------|-----------------------|------------------------|
+| Dependencies    | bash ≥ 4, git         | git only               |
+| Portability     | Unix with bash 4      | Cross-platform         |
+| Startup         | ~50 ms                | ~2 ms                  |
+| Binary size     | 15 KB                 | 768 KB (stripped)      |
+| Code            | 436 lines, monolithic | 627 lines, 4 modules   |
+| Error handling  | `set -e` + ad-hoc     | `Result<T,E>` + `?`    |
 
-## Comparison with Bash Version
+## License
 
-| Aspect          | Bash (`git-tree`) | Rust (`git-tree-rs`)    |
-|-----------------|-------------------|-------------------------|
-| Dependencies    | bash ≥ 4, git     | git only                |
-| Portability     | Unix with bash 4  | Cross-platform          |
-| Performance     | ~50ms (startup)   | ~2ms (startup)          |
-| Binary size     | 15 KB (script)    | 768 KB (stripped)       |
-| Maintainability | Single 400-line sh| 4 modules, 300 LoC Rust |
-| Error handling  | `set -e` / ad-hoc | Typed `Result` + `?`    |
+MIT — see [LICENSE](LICENSE).
