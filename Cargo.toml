@@ -1,0 +1,19 @@
+[package]
+name = "git-tree"
+version = "1.0.0"
+edition = "2021"
+description = "Display Git-tracked files in a tree structure with syntax highlighting"
+license = "MIT"
+authors = ["Claude <noreply@anthropic.com>"]
+
+[[bin]]
+name = "git-tree"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+
+[profile.release]
+opt-level = 2
+strip = true
+lto = true
