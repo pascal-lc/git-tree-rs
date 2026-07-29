@@ -3,6 +3,7 @@
 
 PREFIX     ?= $(HOME)/.local
 BINDIR     ?= $(PREFIX)/bin
+MANDIR     ?= $(PREFIX)/share/man/man1
 VERSION    := $(shell grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
 TARGET     := target/release/git-tree
 
@@ -26,15 +27,28 @@ build: ## Build in release mode
 	@echo "Built $(TARGET)"
 
 .PHONY: install
-install: build ## Install git-tree to PREFIX/bin
+install: build ## Install git-tree binary and man page
+	@install -d "$(BINDIR)"
+	@install -m 0755 "$(TARGET)" "$(BINDIR)/git-tree"
+	@install -d "$(MANDIR)"
+	@install -m 0644 man/git-tree.1 "$(MANDIR)/git-tree.1"
+	@echo "Installed git-tree v$(VERSION)"
+	@echo "  binary → $(BINDIR)/git-tree"
+	@echo "  man    → $(MANDIR)/git-tree.1"
+	@echo ""
+	@echo "Try: git tree --help"
+
+.PHONY: install-bin
+install-bin: build ## Install binary only (no man page)
 	@install -d "$(BINDIR)"
 	@install -m 0755 "$(TARGET)" "$(BINDIR)/git-tree"
 	@echo "Installed git-tree v$(VERSION) → $(BINDIR)/git-tree"
 
 .PHONY: uninstall
-uninstall: ## Remove git-tree from PREFIX/bin
+uninstall: ## Remove binary and man page
 	@rm -f "$(BINDIR)/git-tree"
-	@echo "Removed $(BINDIR)/git-tree"
+	@rm -f "$(MANDIR)/git-tree.1"
+	@echo "Removed git-tree"
 
 .PHONY: check
 check: ## Run clippy lints

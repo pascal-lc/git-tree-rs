@@ -1,0 +1,87 @@
+.\" git-tree(1) — manual page
+.TH "GIT-TREE" "1" "July 2026" "git-tree v1.0.0" "Git Manual"
+
+.SH NAME
+git-tree \- Display Git-tracked files in a tree structure with syntax highlighting
+
+.SH SYNOPSIS
+\fBgit tree\fR [\fIdirectory\fR] [\fB\-a\fR] [\fB\-A\fR] [\fB\-d\fR] [\fB\-L\fR \fIN\fR] [\fB\-\-color=\fIWHEN\fR]
+
+.SH DESCRIPTION
+\fBgit-tree\fR renders the repository's tracked file hierarchy as an
+ASCII tree, similar to the system \fBtree\fR(1) utility but scoped to
+files known to Git.
+.PP
+By default only \fBtracked\fR files are shown (\fBgit ls-files --cached\fR).
+
+.SH OPTIONS
+.TP
+\fB\-a\fR, \fB\-\-all\fR
+Include untracked files (excluding \fB.gitignore\fR'd).
+.TP
+\fB\-A\fR, \fB\-\-all\-files\fR
+Include ALL files, including \fB.gitignore\fR'd ones.
+.TP
+\fB\-d\fR, \fB\-\-dirs\-only\fR
+Show directories only; omit regular files.
+.TP
+\fB\-L\fR \fIN\fR
+Limit the display depth to \fIN\fR levels (like \fBtree -L\fR).
+.TP
+\fB\-\-color=\fIWHEN\fR
+When to colorize output: \fBalways\fR, \fBnever\fR, or \fBauto\fR (default).
+.TP
+\fB\-h\fR
+Show brief help and exit.
+.TP
+\fB\-\-help\fR
+Show this manual page.
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Show version information and exit.
+
+.SH COLOR RULES
+Colors follow \fBLS_COLORS\fR conventions:
+.TS
+tab(|);
+l l l.
+_
+Entry|LS_COLORS key|Default
+_
+Directory|di|Bold blue
+Executable|ex|Bold green
+Symlink|ln|Bold cyan
+Orphaned link|or|Red background
+Hidden file|—|Dim
+Tree connector|—|Dim
+_
+.TE
+.PP
+Set \fBNO_COLOR=1\fR to disable all color output.
+
+.SH EXAMPLES
+.nf
+# Show entire repository (tracked files only)
+$ \fBgit tree\fR
+
+# Limit depth to 2 levels
+$ \fBgit tree -L 2\fR
+
+# Show only directories
+$ \fBgit tree -d\fR
+
+# Include untracked files
+$ \fBgit tree -a\fR
+
+# Force color output even when piped
+$ \fBgit tree --color=always | less -R\fR
+.fi
+
+.SH "SEE ALSO"
+\fBgit\fR(1), \fBgit-ls-files\fR(1), \fBtree\fR(1), \fBdircolors\fR(1)
+
+.SH AUTHOR
+Written by Claude and contributors.
+
+.SH LICENSE
+MIT — see the LICENSE file in the source repository.
