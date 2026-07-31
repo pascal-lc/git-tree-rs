@@ -69,8 +69,37 @@ git tree -a               # include untracked files
 git tree -A               # include ALL files (.gitignore'd too)
 git tree --color=always   # force color output
 git tree --color=never    # disable color
+git tree --no-git-status  # suppress Git status prefixes
 git tree --help           # full help
 ```
+
+## Git Status Prefixes
+
+By default each entry is prefixed with a one-character Git state indicator
+(following `eza --git`), so you can spot uncommitted work at a glance:
+
+| State        | Prefix | Color             |
+|--------------|--------|-------------------|
+| committed    | ` `    | (type color)      |
+| modified     | `M`    | Yellow (LS_COLORS: `gm`) |
+| staged       | `+`    | Green (LS_COLORS: `ga`)  |
+| untracked    | `?`    | Red (LS_COLORS: `gu`)    |
+
+Directories show the **aggregate** state of their descendants (staged >
+modified > untracked). A file that is both staged and modified is reported
+as staged. Regular-file names are recolored by state; directories,
+executables and symlinks keep their type color and rely on the prefix.
+
+```text
+git-tree-rs/
+├──   .gitignore
+├── + Cargo.toml          <- staged
+├── M src/main.rs         <- modified
+└──  src/
+    └── + tree.rs
+```
+
+Use `--no-git-status` to restore the original prefix-free layout.
 
 ## Color Rules
 
@@ -82,6 +111,9 @@ git tree --help           # full help
 | Orphaned link  | `or`          | Red bg       |
 | Hidden file    | —             | Dim          |
 | Tree connector | —             | Dim          |
+| Git: modified  | `gm`          | Yellow bold  |
+| Git: staged    | `ga`          | Green bold   |
+| Git: untracked | `gu`          | Red bold     |
 
 Colors automatically follow `LS_COLORS` and respect `NO_COLOR=1`.
 
@@ -89,18 +121,20 @@ Colors automatically follow `LS_COLORS` and respect `NO_COLOR=1`.
 
 ```
 src/
-├── main.rs     clap derive CLI + module wiring
-├── color.rs    ANSI codes, LS_COLORS parser, NO_COLOR compliance
-├── git.rs      git ls-files integration, file-set selection
-└── tree.rs     BTreeMap tree builder, recursive renderer
+├── main.rs      clap derive CLI + module wiring
+├── color.rs     ANSI codes, LS_COLORS parser, NO_COLOR compliance
+├── git.rs       git ls-files integration, file-set selection, repo root
+├── gitstate.rs  git status --porcelain parsing, GitState classification
+└── tree.rs      BTreeMap tree builder, state aggregation, recursive renderer
 ```
 
-| Module    | Responsibility |
-|-----------|---------------|
-| `main.rs` | Argument parsing, error handling, orchestration |
-| `color.rs`| Color mode detection, LS_COLORS parsing, ANSI escape generation |
-| `git.rs`  | `git ls-files` invocation, path filtering, repo root resolution |
-| `tree.rs` | In-memory tree from flat path list, depth-limited recursive rendering |
+| Module       | Responsibility |
+|--------------|---------------|
+| `main.rs`    | Argument parsing, error handling, orchestration |
+| `color.rs`   | Color mode detection, LS_COLORS parsing, ANSI escape generation |
+| `git.rs`     | `git ls-files` invocation, path filtering, repo root resolution |
+| `gitstate.rs`| `git status --porcelain` parsing, committed/modified/staged/untracked classification |
+| `tree.rs`    | In-memory tree from flat path list, directory state aggregation, depth-limited rendering |
 
 ## Requirements
 

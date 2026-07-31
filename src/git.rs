@@ -61,33 +61,37 @@ pub fn list_files(file_set: FileSet, target: Option<&str>) -> Result<Vec<PathBuf
         .filter(|p| !p.as_os_str().is_empty())
         .collect();
 
-    // Filter by target directory
+    // Re-base onto the target directory, if any: keep only entries under it
+    // and strip the prefix so tree-building starts from the right root.
     if let Some(tgt) = target {
         let tgt = tgt.trim_end_matches('/');
-        files.retain(|p| {
-            let s = p.to_string_lossy();
-            s == tgt || s.starts_with(&format!("{}/", tgt))
-        });
+        files = files
+            .into_iter()
+            .filter_map(|f| {
+                rel_to_target(&f.to_string_lossy(), tgt).map(PathBuf::from)
+            })
+            .collect();
     }
 
     // Already sorted by `git ls-files | sort`; but ensure it
     files.sort();
 
-    // Strip the `target` prefix so tree-building starts from the right root
-    if let Some(tgt) = target {
-        let tgt = tgt.trim_end_matches('/');
-        let prefix = format!("{}/", tgt);
-        for f in &mut files {
-            let s = f.to_string_lossy().into_owned();
-            if s == tgt {
-                // shouldn't happen for a real file, but be safe
-            } else if let Some(rest) = s.strip_prefix(&prefix) {
-                *f = PathBuf::from(rest);
-            }
-        }
-    }
-
     Ok(files)
+}
+
+/// Rebase a repo-root-relative path onto a target directory.
+///
+/// Returns `Some(rel)` where `rel` is the path with the target prefix
+/// removed (or the path itself when it equals `target`), or `None` when the
+/// path is outside `target`. Shared by [`list_files`] and
+/// [`crate::gitstate::status_map`] to keep target handling consistent.
+pub fn rel_to_target(path: &str, target: &str) -> Option<String> {
+    let tgt = target.trim_end_matches('/');
+    if path == tgt {
+        Some(path.to_string())
+    } else {
+        path.strip_prefix(&format!("{}/", tgt)).map(|rest| rest.to_string())
+    }
 }
 
 /// Return the absolute path to the repository root.

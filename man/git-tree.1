@@ -1,18 +1,20 @@
 .\" git-tree(1) — manual page
-.TH "GIT-TREE" "1" "July 2026" "git-tree v1.0.0" "Git Manual"
+.TH "GIT-TREE" "1" "July 2026" "git-tree v1.1.0" "Git Manual"
 
 .SH NAME
 git-tree \- Display Git-tracked files in a tree structure with syntax highlighting
 
 .SH SYNOPSIS
-\fBgit tree\fR [\fIdirectory\fR] [\fB\-a\fR] [\fB\-A\fR] [\fB\-d\fR] [\fB\-L\fR \fIN\fR] [\fB\-\-color=\fIWHEN\fR]
+\fBgit tree\fR [\fIdirectory\fR] [\fB\-a\fR] [\fB\-A\fR] [\fB\-d\fR] [\fB\-L\fR \fIN\fR] [\fB\-\-color=\fIWHEN\fR] [\fB\-\-git-status\fR] [\fB\-\-no-git-status\fR]
 
 .SH DESCRIPTION
 \fBgit-tree\fR renders the repository's tracked file hierarchy as an
 ASCII tree, similar to the system \fBtree\fR(1) utility but scoped to
 files known to Git.
 .PP
-By default only \fBtracked\fR files are shown (\fBgit ls-files --cached\fR).
+By default only \fBtracked\fR files are shown (\fBgit ls-files --cached\fR),
+and each entry is prefixed with a one-character \fBGit status\fR indicator
+(committed / modified / staged) following \fBeza --git\fR.
 
 .SH OPTIONS
 .TP
@@ -31,6 +33,12 @@ Limit the display depth to \fIN\fR levels (like \fBtree -L\fR).
 \fB\-\-color=\fIWHEN\fR
 When to colorize output: \fBalways\fR, \fBnever\fR, or \fBauto\fR (default).
 .TP
+\fB\-\-git-status\fR
+Show Git status prefixes (default). Provided for explicitness.
+.TP
+\fB\-\-no\-git\-status\fR
+Suppress Git status prefixes and restore the original layout.
+.TP
 \fB\-h\fR
 Show brief help and exit.
 .TP
@@ -39,6 +47,26 @@ Show this manual page.
 .TP
 \fB\-V\fR, \fB\-\-version\fR
 Show version information and exit.
+
+.SH GIT STATUS PREFIXES
+Each entry is prefixed with a one-character Git state indicator:
+.TS
+tab(|);
+l l l.
+_
+State|Prefix|Default color
+_
+committed| (blank)|type color
+modified|M|Yellow bold
+staged|+|Green bold
+untracked|?|Red bold
+_
+.TE
+.PP
+Directories show the aggregate state of their descendants
+(staged > modified > untracked). A file both staged and modified is
+reported as staged. Regular-file names are recolored by state; directories,
+executables and symlinks keep their type color.
 
 .SH COLOR RULES
 Colors follow \fBLS_COLORS\fR conventions:
@@ -54,6 +82,9 @@ Symlink|ln|Bold cyan
 Orphaned link|or|Red background
 Hidden file|—|Dim
 Tree connector|—|Dim
+Git: modified|gm|Yellow bold
+Git: staged|ga|Green bold
+Git: untracked|gu|Red bold
 _
 .TE
 .PP

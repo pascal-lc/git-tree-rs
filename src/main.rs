@@ -5,14 +5,17 @@
 
 mod color;
 mod git;
+mod gitstate;
 mod tree;
 
 use clap::Parser;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::process;
 
 use color::{ColorMode, Colors};
 use git::FileSet;
+use gitstate::GitState;
 use tree::{BuildOptions, RenderOptions};
 
 // ---- CLI definition ---------------------------------------------------------
@@ -31,7 +34,10 @@ use tree::{BuildOptions, RenderOptions};
                   Symlink        Bold cyan    (LS_COLORS: ln)\n  \
                   Orphan link    Red bg       (LS_COLORS: or)\n  \
                   Hidden file    Dim          (.dotfiles)\n  \
-                  Tree lines     Dim          (connectors)"
+                  Tree lines     Dim          (connectors)\n  \
+                  Git: modified  Yellow       (LS_COLORS: gm)\n  \
+                  Git: staged    Green        (LS_COLORS: ga)\n  \
+                  Git: untracked Red          (LS_COLORS: gu)"
 )]
 struct Args {
     /// Include untracked files (excluding .gitignore'd)
@@ -58,6 +64,15 @@ struct Args {
         value_parser = ["always", "yes", "force", "never", "no", "none", "auto", "tty"]
     )]
     color_mode: String,
+
+    /// Show Git status prefix for each file (committed/modified/staged).
+    /// This is the default; the flag exists for explicitness.
+    #[arg(long = "git-status", conflicts_with = "no_git_status")]
+    git_status: bool,
+
+    /// Disable Git status prefixes (default: enabled)
+    #[arg(long = "no-git-status", conflicts_with = "git_status")]
+    no_git_status: bool,
 
     /// Target directory (default: repository root)
     #[arg(value_name = "DIRECTORY")]
@@ -108,12 +123,33 @@ fn main() {
         return;
     }
 
+    // ---- collect Git status states (only when prefixes are wanted) ----
+    // Best-effort: a failure here degrades gracefully to all-committed
+    // (prefixes still render, as blank indicators).
+    let show_git = args.git_status || !args.no_git_status;
+    let states = if show_git {
+        gitstate::status_map(args.target.as_deref()).unwrap_or_default()
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    let annotated: Vec<(PathBuf, GitState)> = files
+        .iter()
+        .map(|p| {
+            let s = states
+                .get(p.to_string_lossy().as_ref())
+                .copied()
+                .unwrap_or(GitState::Committed);
+            (p.clone(), s)
+        })
+        .collect();
+
     // ---- build the tree ----
     let build_opts = BuildOptions {
         max_depth: args.max_depth.unwrap_or(0),
         dirs_only: args.dirs_only,
     };
-    let mut tree = tree::build_tree(&files, &build_opts);
+    let mut tree = tree::build_tree(&annotated, &build_opts);
 
     // ---- determine root label ----
     tree.root_name = match &args.target {
@@ -133,6 +169,7 @@ fn main() {
         colors: &colors,
         git_root: &repo_root,
         max_depth: args.max_depth.unwrap_or(0),
+        show_git,
     };
     // Render (ignore broken pipe — e.g. when piping to `head`)
     if let Err(e) = tree::render_tree(&tree, &render_opts) {

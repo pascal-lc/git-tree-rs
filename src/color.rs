@@ -7,6 +7,8 @@ use std::collections::HashMap;
 use std::env;
 use std::io::IsTerminal;
 
+use crate::gitstate::GitState;
+
 /// When to emit ANSI color codes.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ColorMode {
@@ -26,6 +28,9 @@ pub struct Colors {
     pub tree: String,
     pub reset: String,
     pub enabled: bool,
+    pub git_modified: String,
+    pub git_staged: String,
+    pub git_untracked: String,
 }
 
 impl Colors {
@@ -54,6 +59,9 @@ impl Colors {
                 tree: String::new(),
                 reset: String::new(),
                 enabled: false,
+                git_modified: String::new(),
+                git_staged: String::new(),
+                git_untracked: String::new(),
             };
         }
 
@@ -68,11 +76,44 @@ impl Colors {
             tree: ansi_code("02"), // dim connectors
             reset: ansi_code("0"),
             enabled: true,
+            // Git-state colors follow eza's LS_COLORS keys where they exist
+            // (ga=new, gm=modified, gd=deleted); `gu` is a git-tree extension
+            // for untracked files. Defaults avoid clashing with dir/exec.
+            git_modified: ansi(&map, "gm", "01;33"),
+            git_staged: ansi(&map, "ga", "01;32"),
+            git_untracked: ansi(&map, "gu", "01;31"),
         }
     }
 
-    /// Pick the right color for a path based on filesystem metadata.
-    pub fn file_color(&self, path: &std::path::Path, is_dir: bool) -> &str {
+    /// Pick the color for a [`GitState`] indicator (and regular-file names).
+    /// Returns an empty string when colors are disabled or for
+    /// [`GitState::Committed`] (which keeps its type color).
+    pub fn git_state_color(&self, state: GitState) -> &str {
+        if !self.enabled {
+            return "";
+        }
+        match state {
+            GitState::Committed => "",
+            GitState::Modified => &self.git_modified,
+            GitState::Staged => &self.git_staged,
+            GitState::Untracked => &self.git_untracked,
+        }
+    }
+
+    /// Pick the right color for a path based on filesystem metadata and Git
+    /// state.
+    ///
+    /// In git mode (`show_git` = true), regular files take their Git-state
+    /// color when not committed; directories, executables and symlinks
+    /// always keep their type color so the type semantics are preserved.
+    /// Out of git mode, behavior is unchanged (type-based coloring only).
+    pub fn file_color(
+        &self,
+        path: &std::path::Path,
+        is_dir: bool,
+        state: GitState,
+        show_git: bool,
+    ) -> &str {
         if !self.enabled {
             return "";
         }
@@ -81,43 +122,33 @@ impl Colors {
             return &self.dir;
         }
 
-        // Hide the borrow-checker sadness — we need an owned check
-        let name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
-
-        // Hidden files (leading dot)
-        if name.starts_with('.') {
-            // Check for executables / symlinks even when hidden
-            if is_executable(path) {
-                return &self.exec;
-            }
-            if path.is_symlink() {
-                if path.exists() {
-                    return &self.symlink;
-                } else {
-                    return &self.orphan;
-                }
-            }
-            return &self.hidden;
-        }
-
-        // Executables
+        // Executables keep their type color.
         if is_executable(path) {
             return &self.exec;
         }
 
-        // Symlinks
+        // Symlinks keep their type color.
         if path.is_symlink() {
             if path.exists() {
                 return &self.symlink;
-            } else {
-                return &self.orphan;
             }
+            return &self.orphan;
         }
 
-        // Regular file — no extra color
+        // Regular file: a non-committed state overrides the color in git mode.
+        if show_git && state != GitState::Committed {
+            return self.git_state_color(state);
+        }
+
+        // Hidden dotfiles get dimmed.
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+        if name.starts_with('.') {
+            return &self.hidden;
+        }
+
         ""
     }
 }

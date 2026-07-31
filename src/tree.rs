@@ -5,28 +5,42 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use crate::color::Colors;
+use crate::gitstate::GitState;
 
 // ---- data structure --------------------------------------------------------
 
 /// A node in the file tree.
+///
+/// Both variants carry a [`GitState`]; for directories it is the aggregate
+/// (highest-precedence) state among all descendants.
 #[derive(Debug)]
 pub enum Entry {
-    File,
+    File { state: GitState },
     Dir {
         children: BTreeMap<String, Entry>,
+        state: GitState,
     },
 }
 
 impl Entry {
     fn dir_mut(&mut self) -> &mut BTreeMap<String, Entry> {
         match self {
-            Entry::Dir { children } => children,
-            Entry::File => panic!("tried to get children of a File entry"),
+            Entry::Dir { children, .. } => children,
+            Entry::File { .. } => panic!("tried to get children of a File entry"),
         }
     }
 
     fn is_dir(&self) -> bool {
         matches!(self, Entry::Dir { .. })
+    }
+
+    /// The entry's effective Git state (own state for files, aggregate for
+    /// directories).
+    pub fn state(&self) -> GitState {
+        match self {
+            Entry::File { state } => *state,
+            Entry::Dir { state, .. } => *state,
+        }
     }
 }
 
@@ -47,16 +61,18 @@ pub struct BuildOptions {
     pub dirs_only: bool,
 }
 
-/// Build a `Tree` from a sorted list of relative file paths.
+/// Build a `Tree` from a sorted list of `(path, state)` pairs.
 ///
 /// Each path is split into components; intermediate components become
-/// `Dir` nodes and the final component becomes a `File`.  Depth pruning
-/// happens per-component so that shallow directories are always visible
-/// even when their contents are beyond the depth limit.
-pub fn build_tree(files: &[PathBuf], opts: &BuildOptions) -> Tree {
+/// `Dir` nodes and the final component becomes a `File` carrying its
+/// [`GitState`].  Depth pruning happens per-component so that shallow
+/// directories are always visible even when their contents are beyond the
+/// depth limit.  After insertion, directory nodes are annotated with the
+/// highest-precedence state among their descendants.
+pub fn build_tree(files: &[(PathBuf, GitState)], opts: &BuildOptions) -> Tree {
     let mut root = BTreeMap::new();
 
-    for path in files {
+    for (path, state) in files {
         let components: Vec<&str> = path
             .iter()
             .filter_map(|c| c.to_str())
@@ -83,25 +99,57 @@ pub fn build_tree(files: &[PathBuf], opts: &BuildOptions) -> Tree {
                     // In dirs-only mode, skip leaf files entirely.
                     continue;
                 }
-                // Insert as File (don't overwrite an existing Dir node).
-                current
+                // Insert as File (don't overwrite an existing Dir node),
+                // and record its Git state.
+                let node = current
                     .entry(comp.to_string())
-                    .or_insert(Entry::File);
+                    .or_insert(Entry::File { state: GitState::Committed });
+                if let Entry::File { state: s } = node {
+                    *s = *state;
+                }
             } else {
                 // Intermediate component — always a directory.
                 let node = current
                     .entry(comp.to_string())
                     .or_insert(Entry::Dir {
                         children: BTreeMap::new(),
+                        state: GitState::Committed,
                     });
                 current = node.dir_mut();
             }
         }
     }
 
+    // Propagate child states up into directory aggregate states.
+    for entry in root.values_mut() {
+        finalize_state(entry);
+    }
+
     Tree {
         root_name: String::new(),
         root,
+    }
+}
+
+/// Recursively compute a directory's aggregate [`GitState`] as the
+/// highest-ranked state among its descendants; files keep their own state.
+fn finalize_state(entry: &mut Entry) -> GitState {
+    match entry {
+        Entry::File { state } => *state,
+        Entry::Dir { children, state } => {
+            let agg = children
+                .values_mut()
+                .map(finalize_state)
+                .fold(GitState::Committed, |a, b| {
+                    if b.rank() >= a.rank() {
+                        b
+                    } else {
+                        a
+                    }
+                });
+            *state = agg;
+            agg
+        }
     }
 }
 
@@ -118,6 +166,10 @@ pub struct RenderOptions<'a> {
     pub colors: &'a Colors,
     pub git_root: &'a Path,
     pub max_depth: usize,
+    /// When true, prefix each entry with its Git-state indicator and recolor
+    /// regular-file names by state. When false, behavior is the original
+    /// type-based coloring with no prefix column.
+    pub show_git: bool,
 }
 
 /// Render the tree to stdout.
@@ -160,35 +212,57 @@ fn render_children(
 
         let rel_path = dir_path.join(name);
         let fs_path = opts.git_root.join(&rel_path);
-
-        let color = opts.colors.file_color(&fs_path, is_dir);
         let suffix = if is_dir { "/" } else { "" };
 
-        if !color.is_empty() {
+        if opts.show_git {
+            let state = entry.state();
+            let scolor = opts.colors.git_state_color(state);
+            let indicator = state.indicator();
+            let ncolor = opts.colors.file_color(&fs_path, is_dir, state, true);
+            // {tree}{connector}{reset}{scolor}{indicator}{reset} {ncolor}{name}{suffix}{reset}
             writeln!(
                 out,
-                "{}{}{}{}{}{}\x1b[0m",
+                "{}{}{}{}{}{} {}{}{}{}",
                 opts.colors.tree,
                 full_prefix,
                 opts.colors.reset,
-                color,
+                scolor,
+                indicator,
+                opts.colors.reset,
+                ncolor,
                 name,
                 suffix,
+                opts.colors.reset,
             )?;
         } else {
-            writeln!(
-                out,
-                "{}{}{}{}{}",
-                opts.colors.tree,
-                full_prefix,
-                opts.colors.reset,
-                name,
-                suffix,
-            )?;
+            let color =
+                opts.colors.file_color(&fs_path, is_dir, GitState::Committed, false);
+            if !color.is_empty() {
+                writeln!(
+                    out,
+                    "{}{}{}{}{}{}\x1b[0m",
+                    opts.colors.tree,
+                    full_prefix,
+                    opts.colors.reset,
+                    color,
+                    name,
+                    suffix,
+                )?;
+            } else {
+                writeln!(
+                    out,
+                    "{}{}{}{}{}",
+                    opts.colors.tree,
+                    full_prefix,
+                    opts.colors.reset,
+                    name,
+                    suffix,
+                )?;
+            }
         }
 
         if is_dir && (opts.max_depth == 0 || depth < opts.max_depth) {
-            if let Entry::Dir { children: sub } = entry {
+            if let Entry::Dir { children: sub, .. } = entry {
                 let new_prefix = format!("{}{}", prefix, child_prefix);
                 render_children(sub, &new_prefix, &rel_path, opts, depth + 1, out)?;
             }
