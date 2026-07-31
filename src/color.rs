@@ -86,14 +86,16 @@ impl Colors {
     }
 
     /// Pick the color for a [`GitState`] indicator (and regular-file names).
-    /// Returns an empty string when colors are disabled or for
-    /// [`GitState::Committed`] (which keeps its type color).
+    /// Returns an empty string when colors are disabled. For
+    /// [`GitState::Committed`] the indicator reuses the dim tree color so it
+    /// reads as quiet scaffolding; committed file *names* keep their type
+    /// color (handled in [`Self::file_color`]).
     pub fn git_state_color(&self, state: GitState) -> &str {
         if !self.enabled {
             return "";
         }
         match state {
-            GitState::Committed => "",
+            GitState::Committed => &self.tree,
             GitState::Modified => &self.git_modified,
             GitState::Staged => &self.git_staged,
             GitState::Untracked => &self.git_untracked,

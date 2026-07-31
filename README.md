@@ -80,7 +80,7 @@ By default each entry is prefixed with a one-character Git state indicator
 
 | State        | Prefix | Color             |
 |--------------|--------|-------------------|
-| committed    | ` `    | (type color)      |
+| committed    | `✓`    | Dim (tree color)  |
 | modified     | `M`    | Yellow (LS_COLORS: `gm`) |
 | staged       | `+`    | Green (LS_COLORS: `ga`)  |
 | untracked    | `?`    | Red (LS_COLORS: `gu`)    |
@@ -92,10 +92,10 @@ executables and symlinks keep their type color and rely on the prefix.
 
 ```text
 git-tree-rs/
-├──   .gitignore
+├── ✓ .gitignore
 ├── + Cargo.toml          <- staged
 ├── M src/main.rs         <- modified
-└──  src/
+└── ✓ src/
     └── + tree.rs
 ```
 

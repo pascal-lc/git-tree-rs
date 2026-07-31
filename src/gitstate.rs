@@ -33,7 +33,7 @@ impl GitState {
     /// Single-character indicator drawn before the filename.
     pub fn indicator(self) -> &'static str {
         match self {
-            Self::Committed => " ",
+            Self::Committed => "✓",
             Self::Modified => "M",
             Self::Staged => "+",
             Self::Untracked => "?",
